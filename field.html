@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Age of Missalera</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #100c09; color: #f4e7cf; font-family: Georgia, serif; }
+  #app { height: 100dvh; height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; justify-content: space-between; padding: 8px 10px; background: #2c1d12; border-bottom: 3px solid #c9a15b; }
+  b { color: #e7c27a; letter-spacing: .08em; font-size: 13px; }
+  #hud { font-size: 12px; text-align: right; }
+  #stage { position: relative; flex: 1; min-height: 240px; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  #log { position: absolute; left: 8px; right: 8px; top: 8px; z-index: 2; background: rgba(20,12,8,.8); border: 1px solid #c9a15b; border-radius: 8px; padding: 7px 9px; font-size: 14px; }
+  #controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; padding: 8px; background: #140e0a; }
+  button { font-family: inherit; font-size: 15px; padding: 13px 4px; border-radius: 10px; border: 1px solid #c9a15b; background: #24344c; color: #f4e7cf; }
+  #menu, #end { position: absolute; inset: 0; z-index: 5; overflow: auto; background: rgba(8,6,4,.92); padding: 12px; }
+  .card { background: #f3e4c6; color: #1b130c; border: 3px solid #6b4a28; border-radius: 12px; padding: 12px; }
+  .card h1 { margin: 0 0 6px; font-size: 26px; }
+  .card p { margin: 6px 0 10px; line-height: 1.35; }
+  .card button { width: 100%; margin: 5px 0; text-align: left; background: #efe0c0; color: #1b130c; }
+  .hide { display: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header><b>AGE OF MISSALERA</b><div id="hud">Field</div></header>
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="log">Flags swear only to the force named on them.</div>
+    <div id="menu"><div class="card">
+      <h1>Age of Missalera</h1>
+      <p>Sword flags want swords. Horse flags want riders. Bow flags want archers. The capital wants all three. One hundred seconds.</p>
+      <div id="list"></div>
+    </div></div>
+    <div id="end" class="hide"><div class="card"><h1 id="endTitle">Done</h1><p id="endText"></p><button id="back" type="button">Field</button></div></div>
+  </div>
+  <div id="controls">
+    <button id="all" type="button">All</button>
+    <button id="atk" type="button">Attack</button>
+    <button id="hold" type="button">Hold</button>
+    <button id="pow" type="button">Power</button>
+  </div>
+</div>
+<script>
+var TYPES = { sword: { hp: 120, dmg: 16, range: 26, speed: 64, cd: 0.6 }, horse: { hp: 96, dmg: 18, range: 28, speed: 116, cd: 0.58 }, harc: { hp: 70, dmg: 9, range: 116, speed: 118, cd: 0.74 }, archer: { hp: 56, dmg: 12, range: 126, speed: 58, cd: 0.76 } };
+var NEED = { sword: "swords", horse: "riders", bow: "archers", all: "all three" };
+function accepts(need, type) { if (need === "all") return true; if (need === "sword") return type === "sword"; if (need === "horse") return type === "horse" || type === "harc"; if (need === "bow") return type === "archer" || type === "harc"; return false; }
+var MISSIONS = [
+  { title: "I · Dust Gate", brief: "Sword flag. Archers camp it.", time: 100, start: [["sword", 6], ["archer", 2]], banners: [[0.4, 0.42, "Dust Gate", "sword", [["sword", 4]], "wedge"]], foes: [["archer", 5, 0.62, 0.42], ["sword", 3, 0.78, 0.62]], win: "banners" },
+  { title: "II · Horse Road", brief: "Horse flag. Pull the swords off first.", time: 100, start: [["sword", 4], ["horse", 3]], banners: [[0.55, 0.4, "Mare Post", "horse", [["horse", 4]], "stampede"]], foes: [["sword", 6, 0.55, 0.4], ["archer", 3, 0.78, 0.66]], win: "banners" },
+  { title: "III · Orchard", brief: "Bow flag. Swords are ignored here.", time: 100, start: [["sword", 3], ["archer", 2], ["harc", 2]], banners: [[0.48, 0.36, "Orchard", "bow", [["archer", 3], ["harc", 2]], "volley"]], foes: [["sword", 5, 0.48, 0.36], ["archer", 3, 0.75, 0.62]], win: "banners" },
+  { title: "IV · Three Oaths", brief: "Leave a flag and they take it.", time: 120, start: [["sword", 4], ["horse", 2], ["archer", 3]], banners: [[0.28, 0.32, "Steel", "sword", [["sword", 3]], "wedge"], [0.62, 0.58, "Hoof", "horse", [["horse", 3]], "stampede"], [0.72, 0.28, "String", "bow", [["archer", 3]], "volley"]], foes: [["sword", 4, 0.45, 0.55], ["horse", 3, 0.8, 0.48], ["archer", 3, 0.4, 0.72]], enemyCollects: true, win: "banners" },
+  { title: "V · Collector", brief: "A stolen flag feeds them.", time: 110, start: [["sword", 4], ["horse", 2], ["archer", 3]], banners: [[0.36, 0.4, "Copper", "sword", [["sword", 4]], "wedge"], [0.66, 0.4, "Stable", "horse", [["horse", 3]], "stampede"]], foes: [["sword", 4, 0.5, 0.66], ["horse", 3, 0.78, 0.28], ["archer", 3, 0.8, 0.66]], enemyCollects: true, win: "banners" },
+  { title: "VI · Capital", brief: "Gold flag wants all three together.", time: 130, start: [["sword", 4], ["horse", 2], ["harc", 2], ["archer", 2]], banners: [[0.28, 0.3, "West", "sword", [["sword", 3]], "wedge"], [0.28, 0.68, "Stables", "horse", [["horse", 2]], "stampede"], [0.55, 0.48, "Bell", "bow", [["archer", 3]], "volley"], [0.76, 0.38, "Capital", "all", [["sword", 2], ["horse", 2]], null, 1]], foes: [["sword", 5, 0.7, 0.28], ["horse", 3, 0.82, 0.55], ["archer", 4, 0.68, 0.66]], win: "capital" }
+];
+var canvas = document.getElementById("c"), ctx = canvas.getContext("2d"), hud = document.getElementById("hud"), logEl = document.getElementById("log");
+var W = 360, H = 480, state = null, last = 0, shots = [];
+function say(t) { logEl.textContent = t; }
+function fit() { var s = document.getElementById("stage"); W = Math.max(300, s.clientWidth || innerWidth); H = Math.max(260, s.clientHeight || 460); canvas.width = W; canvas.height = H; }
+function mk(type, side, x, y) { var sp = TYPES[type]; return { type: type, side: side, x: x, y: y, hp: sp.hp, max: sp.hp, cd: Math.random(), tx: x, ty: y, target: null, sel: false, stun: 0, alive: true, hold: false, bob: Math.random() * 6 }; }
+function group(list, side, ox, oy) { var out = [], i = 0, a, n; for (a = 0; a < list.length; a++) for (n = 0; n < list[a][1]; n++, i++) out.push(mk(list[a][0], side, ox + Math.cos(i * 0.9) * 16, oy + Math.sin(i * 0.9) * 16)); return out; }
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function nearest(u, max) { var best = null, bd = max || 9999, i, d; for (i = 0; i < state.units.length; i++) if (state.units[i].alive && state.units[i].side !== u.side) { d = dist(u, state.units[i]); if (d < bd) { bd = d; best = state.units[i]; } } return best; }
+function bonus(a, d) { if (a === "sword" && d === "horse") return 1.7; if (a === "horse" && (d === "archer" || d === "harc")) return 1.6; if (a === "archer" && d === "sword") return 1.6; if (a === "horse" && d === "sword") return 0.58; if (a === "sword" && d === "archer") return 0.68; return 1; }
+function start(m) {
+  fit(); shots = [];
+  var units = group(m.start, "player", W * 0.14, H * 0.62), i, f;
+  for (i = 0; i < m.foes.length; i++) { f = m.foes[i]; units = units.concat(group([[f[0], f[1]]], "enemy", W * f[2], H * f[3])); }
+  state = { m: m, over: null, left: m.time, powers: {}, cd: { wedge: 0, stampede: 0, volley: 0 }, units: units, banners: m.banners.map(function (b) { return { x: W * b[0], y: H * b[1], name: b[2], need: b[3], grant: b[4], power: b[5], capital: b[6], progress: 0, done: false, owner: null, hold: b[6] ? 5 : 3.4 }; }), warned: 0 };
+  document.getElementById("menu").classList.add("hide"); document.getElementById("end").classList.add("hide"); say(m.brief);
+}
+function claim(b, side) { if (b.done && b.owner === side) return; b.done = true; b.owner = side; b.progress = b.hold; state.units = state.units.concat(group(b.grant, side, b.x, b.y + 30)); if (side === "player" && b.power) state.powers[b.power] = true; say(side === "player" ? b.name + " sworn." : "They took " + b.name); }
+function move(u, x, y, s) { var d = Math.hypot(x - u.x, y - u.y); if (d < 1) return; var m = Math.min(s, d); u.x += (x - u.x) / d * m; u.y += (y - u.y) / d * m; }
+function endGame(win, text) { state.over = 1; document.getElementById("endTitle").textContent = win ? "Oath kept" : "Oath broken"; document.getElementById("endText").textContent = text; document.getElementById("end").classList.remove("hide"); }
+function tick(dt) {
+  if (!state || state.over) return;
+  state.left -= dt; state.warned = Math.max(0, state.warned - dt);
+  var i, u, spec, foe, b, mine, done, pr, er, haveS, haveH, haveB, wrong;
+  for (i in state.cd) state.cd[i] = Math.max(0, state.cd[i] - dt);
+  for (i = 0; i < state.units.length; i++) {
+    u = state.units[i]; if (!u.alive) continue; u.stun = Math.max(0, u.stun - dt); u.cd = Math.max(0, u.cd - dt); u.bob += dt * 8; if (u.stun > 0) continue;
+    spec = TYPES[u.type]; foe = u.target && u.target.alive ? u.target : null;
+    if (!foe && !u.hold) foe = nearest(u, u.side === "enemy" ? 210 : 320);
+    if (foe) { u.target = foe; if (dist(u, foe) <= spec.range) { if (u.cd <= 0) { foe.hp -= spec.dmg * bonus(u.type, foe.type); u.cd = spec.cd; if (u.type === "archer" || u.type === "harc") shots.push({ x: u.x, y: u.y - 8, tx: foe.x, ty: foe.y - 8, life: 0.16 }); if (foe.hp <= 0) foe.alive = false; } } else move(u, foe.x, foe.y, spec.speed * dt); }
+    else if (dist(u, { x: u.tx, y: u.ty }) > 6) move(u, u.tx, u.ty, spec.speed * dt);
+  }
+  for (i = 0; i < state.banners.length; i++) {
+    b = state.banners[i]; pr = state.units.filter(function (u) { return u.alive && u.side === "player" && dist(u, b) < 56 && accepts(b.need, u.type); }).length; er = state.units.filter(function (u) { return u.alive && u.side === "enemy" && dist(u, b) < 56 && accepts(b.need, u.type); }).length;
+    if (b.need === "all") { haveS = state.units.some(function (u) { return u.alive && u.side === "player" && u.type === "sword" && dist(u, b) < 56; }); haveH = state.units.some(function (u) { return u.alive && u.side === "player" && (u.type === "horse" || u.type === "harc") && dist(u, b) < 56; }); haveB = state.units.some(function (u) { return u.alive && u.side === "player" && (u.type === "archer" || u.type === "harc") && dist(u, b) < 56; }); pr = haveS && haveH && haveB ? 3 : 0; }
+    if (!(b.done && b.owner === "player" && !state.m.enemyCollects)) { if (pr > er && pr) b.progress += dt; else if (state.m.enemyCollects && er > pr && er) b.progress -= dt * 0.8; else b.progress = Math.max(0, b.progress - dt * 0.3); if (b.progress >= b.hold) claim(b, "player"); if (b.progress <= -b.hold && state.m.enemyCollects) { b.progress = 0; claim(b, "enemy"); } }
+    wrong = state.units.filter(function (u) { return u.alive && u.side === "player" && dist(u, b) < 56 && !accepts(b.need, u.type); }).length;
+    if (wrong && !pr && state.warned <= 0) { say(b.name + " needs " + NEED[b.need] + "."); state.warned = 2.4; }
+  }
+  shots = shots.filter(function (s) { return (s.life -= dt) > 0; });
+  mine = state.units.filter(function (u) { return u.alive && u.side === "player"; });
+  done = state.banners.filter(function (b) { return b.done && b.owner === "player"; }).length;
+  hud.innerHTML = state.m.title + " · " + Math.max(0, Math.ceil(state.left)) + "s<br>S " + cnt(mine, "sword") + "  H " + cnt(mine, "horse") + "  HB " + cnt(mine, "harc") + "  A " + cnt(mine, "archer");
+  if (state.left <= 0) endGame(false, "Time. A second host reached the field.");
+  else if (!mine.length) endGame(false, "No one left to swear.");
+  else if (state.m.win === "banners" && done === state.banners.length) endGame(true, "Every flag swore.");
+  else if (state.m.win === "capital" && state.banners.some(function (b) { return b.capital && b.done && b.owner === "player"; })) endGame(true, "The capital took all three.");
+}
+function cnt(a, t) { return a.filter(function (u) { return u.type === t; }).length; }
+function soldier(u) {
+  var foe = u.side !== "player", y = u.y + Math.sin(u.bob) * 1.2, x = u.x;
+  ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(x + 2, u.y + 10, 10, 4, 0, 0, 7); ctx.fill();
+  if (u.sel) { ctx.strokeStyle = "#f4e7cf"; ctx.beginPath(); ctx.ellipse(x, u.y + 10, 14, 5, 0, 0, 7); ctx.stroke(); }
+  if (u.type === "horse" || u.type === "harc") { ctx.fillStyle = foe ? "#4a2824" : "#6a4520"; ctx.beginPath(); ctx.ellipse(x + 5, y + 2, 13, 6, 0.25, 0, 7); ctx.fill(); ctx.fillRect(x + 12, y - 4, 3, 8); }
+  ctx.fillStyle = foe ? "#8d2e2e" : (u.type === "archer" || u.type === "harc" ? "#314e70" : "#8a3c2c");
+  ctx.fillRect(x - 5, y - 8, 10, 12); ctx.fillStyle = "#e4c2a2"; ctx.beginPath(); ctx.arc(x, y - 12, 4, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#1b130c"; ctx.lineWidth = 2;
+  if (u.type === "sword" || u.type === "horse") { ctx.beginPath(); ctx.moveTo(x + 5, y - 8); ctx.lineTo(x + 12, y - 18); ctx.stroke(); }
+  if (u.type === "archer" || u.type === "harc") { ctx.beginPath(); ctx.arc(x + 8, y - 2, 5, -1, 1); ctx.stroke(); }
+  ctx.fillStyle = "#1b130c"; ctx.fillRect(x - 8, y - 20, 16, 3); ctx.fillStyle = foe ? "#e07a6a" : "#e7c27a"; ctx.fillRect(x - 8, y - 20, 16 * Math.max(0, u.hp / u.max), 3);
+}
+function paint() {
+  var g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "#8ea25c"); g.addColorStop(1, "#5e743c"); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#8b734f"; ctx.fillRect(W * 0.46, 0, 28, H);
+  ctx.fillStyle = "rgba(58,110,140,.45)"; ctx.beginPath(); ctx.ellipse(W * 0.72, H * 0.8, 58, 22, 0, 0, 7); ctx.fill();
+  var i; for (i = 0; i < 11; i++) { ctx.fillStyle = "#2d6234"; ctx.beginPath(); ctx.arc((i * 89) % W, 28 + (i % 4) * 34, 12, 0, 7); ctx.fill(); }
+  if (!state) return;
+  state.banners.forEach(function (b) {
+    ctx.beginPath(); ctx.arc(b.x, b.y, 32, 0, 7); ctx.fillStyle = b.owner === "player" ? "rgba(231,194,122,.25)" : "rgba(244,231,207,.12)"; ctx.fill(); ctx.strokeStyle = b.capital ? "#e7c27a" : "#f4e7cf"; ctx.stroke();
+    ctx.fillStyle = "#24160e"; ctx.fillRect(b.x - 2, b.y - 28, 4, 32);
+    ctx.fillStyle = b.owner === "enemy" ? "#6e1c1c" : (b.capital ? "#e7c27a" : "#c45c1a");
+    ctx.beginPath(); ctx.moveTo(b.x + 2, b.y - 28); ctx.lineTo(b.x + 18, b.y - 18); ctx.lineTo(b.x + 2, b.y - 10); ctx.fill();
+    ctx.fillStyle = "#f4e7cf"; ctx.font = "bold 13px Georgia"; ctx.textAlign = "center"; ctx.fillText(b.name, b.x, b.y - 40); ctx.fillText(NEED[b.need], b.x, b.y + 48);
+    ctx.fillStyle = "#1b130c"; ctx.fillRect(b.x - 22, b.y + 54, 44, 5); ctx.fillStyle = "#e7c27a"; ctx.fillRect(b.x - 22, b.y + 54, 44 * Math.max(0, b.progress) / b.hold, 5);
+  });
+  shots.forEach(function (s) { ctx.strokeStyle = "#f4e7cf"; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.tx, s.ty); ctx.stroke(); });
+  state.units.filter(function (u) { return u.alive; }).sort(function (a, b) { return a.y - b.y; }).forEach(soldier);
+}
+function pool() { var s = state.units.filter(function (u) { return u.alive && u.side === "player" && u.sel; }); return s.length ? s : state.units.filter(function (u) { return u.alive && u.side === "player"; }); }
+function attack() { if (!state) return; pool().forEach(function (u) { u.sel = true; u.hold = false; var f = nearest(u); if (f) { u.target = f; u.tx = f.x; u.ty = f.y; } }); say("Clear them, then stand the named force on the flag."); }
+function hold() { if (!state) return; pool().forEach(function (u) { u.sel = true; u.hold = true; u.target = null; }); say("Holding."); }
+function power() {
+  if (!state) return; var key = ["wedge", "stampede", "volley"].filter(function (k) { return state.powers[k] && state.cd[k] <= 0; })[0]; if (!key) { say("No power yet."); return; }
+  state.units.forEach(function (u) { if (!u.alive || u.side !== "player") return; var f = nearest(u, 150); if (!f) return; if (key === "wedge" && u.type === "sword") { f.hp -= 30; f.stun = 1; } if (key === "stampede" && (u.type === "horse" || u.type === "harc")) f.hp -= 26; if (key === "volley" && (u.type === "archer" || u.type === "harc")) { f.hp -= 22; shots.push({ x: u.x, y: u.y, tx: f.x, ty: f.y, life: 0.2 }); } if (f.hp <= 0) f.alive = false; });
+  state.cd[key] = 10; say(key + ".");
+}
+function tap(e) { if (!state || state.over) return; var r = canvas.getBoundingClientRect(), t = e.changedTouches ? e.changedTouches[0] : e, x = (t.clientX - r.left) * (canvas.width / r.width), y = (t.clientY - r.top) * (canvas.height / r.height), hit = null, i; for (i = state.units.length - 1; i >= 0; i--) if (state.units[i].alive && state.units[i].side === "player" && dist(state.units[i], { x: x, y: y }) < 20) hit = state.units[i]; if (hit) { state.units.forEach(function (u) { u.sel = false; }); hit.sel = true; } else pool().forEach(function (u) { u.sel = true; u.hold = false; u.target = null; u.tx = x; u.ty = y; }); if (e.cancelable) e.preventDefault(); }
+canvas.addEventListener("pointerdown", tap); canvas.addEventListener("touchstart", tap, { passive: false });
+document.getElementById("all").onclick = function () { if (state) state.units.forEach(function (u) { if (u.alive && u.side === "player") u.sel = true; }); };
+document.getElementById("atk").onclick = attack; document.getElementById("hold").onclick = hold; document.getElementById("pow").onclick = power;
+document.getElementById("back").onclick = function () { document.getElementById("end").classList.add("hide"); document.getElementById("menu").classList.remove("hide"); state = null; };
+MISSIONS.forEach(function (m) { var b = document.createElement("button"); b.type = "button"; b.innerHTML = "<b>" + m.title + "</b><br>" + m.brief; b.onclick = function () { start(m); }; document.getElementById("list").appendChild(b); });
+function loop(now) { var dt = Math.min(0.033, (now - last) / 1000 || 0.016); last = now; tick(dt); paint(); requestAnimationFrame(loop); }
+fit(); addEventListener("resize", fit); requestAnimationFrame(loop);
+</script>
+</body>
+</html>
