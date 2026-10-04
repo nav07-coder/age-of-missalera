@@ -6,23 +6,22 @@
 <title>Age of Missalera</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: #1a120c; color: #f3e2c4; font-family: Georgia, serif; }
-  #app { display: flex; flex-direction: column; height: 100dvh; height: 100vh; }
-  header { padding: 8px 10px; background: #2a1d12; font-size: 14px; }
-  #hud { font-size: 13px; opacity: 0.9; }
-  #stage { position: relative; flex: 1; min-height: 240px; }
-  canvas { width: 100%; height: 100%; display: block; background: #7d8a52; touch-action: none; }
-  #controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; padding: 8px; background: #1a120c; }
-  button { font-family: inherit; font-size: 15px; padding: 14px 8px; border: 1px solid #d4a24a; background: #243a5e; color: #f3e2c4; border-radius: 8px; }
-  #menu, #end {
-    position: absolute; inset: 0; background: rgba(14,10,6,.88); z-index: 5;
-    overflow: auto; padding: 16px;
-  }
-  .card { background: #f3e2c4; color: #1c140c; padding: 14px; border-radius: 10px; }
-  .card h1 { margin: 0 0 8px; font-size: 26px; }
-  .card p { margin: 6px 0 12px; line-height: 1.35; }
-  .card button { width: 100%; margin: 6px 0; background: #efe0c0; color: #1c140c; text-align: left; }
+  html, body { margin: 0; height: 100%; background: #120e0a; color: #f4e6c8; font-family: Georgia, "Times New Roman", serif; }
+  #app { height: 100dvh; height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px 10px; background: linear-gradient(#3a2818, #24180f); border-bottom: 2px solid #8a6230; }
+  b { letter-spacing: .08em; color: #e2b65a; }
+  #hud { font-size: 13px; opacity: .92; text-align: right; }
+  #stage { position: relative; flex: 1; min-height: 220px; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; background: #6f7d45; }
+  #controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; padding: 8px; background: #1a130d; }
+  button { font-family: inherit; font-size: 15px; padding: 12px 6px; border-radius: 8px; border: 1px solid #c9a15b; background: #2c4468; color: #f4e6c8; }
+  #menu, #end { position: absolute; inset: 0; z-index: 4; overflow: auto; background: rgba(10,8,6,.82); padding: 14px; }
+  .card { background: #f3e2c4; color: #1c140c; border-radius: 12px; padding: 14px; }
+  .card h1 { margin: 0 0 6px; font-size: 28px; }
+  .card p { margin: 6px 0 10px; line-height: 1.35; }
+  .card button { width: 100%; margin: 6px 0; text-align: left; background: #efe0c0; color: #1c140c; }
   .hide { display: none; }
+  #log { position: absolute; left: 8px; top: 8px; z-index: 2; font-size: 13px; background: rgba(20,14,8,.55); padding: 6px 8px; border-radius: 6px; max-width: 70%; }
 </style>
 </head>
 <body>
@@ -33,10 +32,12 @@
   </header>
   <div id="stage">
     <canvas id="c"></canvas>
+    <div id="log"></div>
     <div id="menu">
       <div class="card">
         <h1>Age of Missalera</h1>
-        <p>Tap a mission. Your soldiers start on the left. Tap Attack, then stand on a banner until it turns gold. That garrison joins you.</p>
+        <p>A host is not trained. It is collected. Take banners, swear in their garrisons, and spend the powers those oaths teach.</p>
+        <p>Swords hold horses. Horses break archers. Archers cut swords. Horse archers kite. Mix the host or lose it.</p>
         <div id="list"></div>
       </div>
     </div>
@@ -44,257 +45,291 @@
       <div class="card">
         <h1 id="endTitle">Done</h1>
         <p id="endText"></p>
-        <button id="back" type="button">Back to missions</button>
+        <button id="back" type="button">Back to the six banners</button>
       </div>
     </div>
   </div>
   <div id="controls">
-    <button type="button" id="all">Select all</button>
-    <button type="button" id="atk">Attack</button>
-    <button type="button" id="pow">Power</button>
-    <button type="button" id="miss" style="grid-column: span 3">Missions</button>
+    <button id="all" type="button">All</button>
+    <button id="atk" type="button">Attack</button>
+    <button id="hold" type="button">Hold</button>
+    <button id="pow" type="button">Power</button>
   </div>
 </div>
 <script>
 const TYPES = {
-  sword: { hp: 90, dmg: 14, range: 26, speed: 70, cd: 0.7, color: "#8c3b2a", r: 11 },
-  horse: { hp: 76, dmg: 16, range: 28, speed: 120, cd: 0.7, color: "#6b4a1f", r: 12 },
-  harc:  { hp: 56, dmg: 9, range: 110, speed: 124, cd: 0.85, color: "#3e5c3a", r: 12 },
-  archer:{ hp: 46, dmg: 11, range: 124, speed: 64, cd: 0.9, color: "#2f4d6e", r: 10 }
+  sword:  { name: "Swords", hp: 110, dmg: 16, range: 28, speed: 68, cd: 0.68, r: 11 },
+  horse:  { name: "Horses", hp: 90, dmg: 18, range: 30, speed: 118, cd: 0.66, r: 12 },
+  harc:   { name: "Horse bows", hp: 64, dmg: 10, range: 118, speed: 122, cd: 0.8, r: 12 },
+  archer: { name: "Archers", hp: 52, dmg: 12, range: 136, speed: 62, cd: 0.82, r: 10 }
 };
+const POWERS = { wedge: "Iron Wedge", stampede: "Stampede", volley: "Black Volley" };
 const MISSIONS = [
-  { title: "1 Dust Gate", start: [["sword",4],["archer",2]], banners: [[0.34,0.45,"Dust Gate",[["sword",4]],"wedge"],[0.72,0.58,"Salt Well",[["archer",3]],null]], foes: [["sword",5,0.7,0.38],["archer",3,0.78,0.62]], win: "clear" },
-  { title: "2 Horse Road", start: [["sword",3],["horse",2]], banners: [[0.28,0.32,"Mare Post",[["horse",3]],"stampede"],[0.62,0.68,"Reed Ford",[["harc",2],["archer",2]],null]], foes: [["horse",4,0.75,0.32],["archer",4,0.8,0.58]], win: "clear" },
-  { title: "3 Kite Orchard", start: [["sword",3],["harc",2]], banners: [[0.4,0.28,"Orchard",[["harc",3]],"volley"],[0.7,0.72,"Lime Kiln",[["sword",4]],null]], foes: [["archer",6,0.72,0.34],["sword",3,0.6,0.5]], win: "clear" },
-  { title: "4 Three Oaths", start: [["sword",3],["horse",1],["archer",2]], banners: [[0.25,0.35,"Steel",[["sword",4]],"wedge"],[0.5,0.62,"Hoof",[["horse",3]],"stampede"],[0.75,0.32,"String",[["archer",3]],"volley"]], foes: [["sword",4,0.55,0.28],["horse",3,0.82,0.55],["archer",4,0.4,0.75]], win: "banners" },
-  { title: "5 The Collector", start: [["sword",4],["horse",2],["archer",2]], banners: [[0.38,0.4,"Copper Yard",[["sword",5]],"wedge"],[0.68,0.42,"Night Stable",[["horse",3],["harc",2]],"stampede"]], foes: [["sword",5,0.55,0.62],["horse",3,0.8,0.28],["archer",4,0.78,0.7]], win: "clear", enemyCollects: true },
-  { title: "6 Capital", start: [["sword",5],["horse",2],["harc",2],["archer",3]], banners: [[0.28,0.3,"West Gate",[["sword",4]],"wedge"],[0.28,0.7,"Stables",[["horse",3],["harc",2]],"stampede"],[0.52,0.48,"Bell Tower",[["archer",4]],"volley"],[0.78,0.4,"Capital",[["sword",3],["horse",2]],null,1]], foes: [["sword",6,0.72,0.32],["horse",4,0.82,0.55],["harc",3,0.68,0.62],["archer",5,0.76,0.22]], win: "capital" }
+  { title: "I  Dust Gate", brief: "Collect the gate swords. Learn the wedge.", start: [["sword",5],["archer",2]], banners: [[0.36,0.42,"Dust Gate",[["sword",5]],"wedge"],[0.7,0.62,"Salt Well",[["archer",3]]]], foes: [["sword",6,0.72,0.36],["archer",4,0.8,0.58]], win: "clear" },
+  { title: "II  Horse Road", brief: "The road pays in cavalry.", start: [["sword",4],["horse",2]], banners: [[0.3,0.3,"Mare Post",[["horse",4]],"stampede"],[0.64,0.7,"Reed Ford",[["harc",3],["archer",2]]]], foes: [["horse",5,0.76,0.3],["archer",4,0.8,0.55]], win: "clear" },
+  { title: "III  Kite Orchard", brief: "Archers in the trees. Answer with horse bows.", start: [["sword",3],["harc",3]], banners: [[0.4,0.28,"Orchard",[["harc",4]],"volley"],[0.72,0.72,"Lime Kiln",[["sword",4]]]], foes: [["archer",7,0.74,0.32],["sword",4,0.58,0.5]], win: "clear" },
+  { title: "IV  Three Oaths", brief: "Take all three banners. The field can wait.", start: [["sword",4],["horse",2],["archer",2]], banners: [[0.26,0.34,"Steel",[["sword",4]],"wedge"],[0.5,0.66,"Hoof",[["horse",3]],"stampede"],[0.76,0.3,"String",[["archer",4],["harc",1]],"volley"]], foes: [["sword",5,0.55,0.28],["horse",4,0.82,0.55],["archer",4,0.38,0.75]], win: "banners" },
+  { title: "V  The Collector", brief: "They collect too. Lose the race and their host grows.", start: [["sword",5],["horse",2],["archer",2]], banners: [[0.4,0.4,"Copper Yard",[["sword",5]],"wedge"],[0.68,0.4,"Night Stable",[["horse",3],["harc",2]],"stampede"]], foes: [["sword",6,0.55,0.66],["horse",4,0.82,0.26],["archer",4,0.78,0.7]], enemyCollects: true, win: "clear" },
+  { title: "VI  Capital Host", brief: "Four banners. The gold one is the capital.", start: [["sword",6],["horse",2],["harc",2],["archer",3]], banners: [[0.28,0.28,"West Gate",[["sword",4]],"wedge"],[0.28,0.72,"Stables",[["horse",3],["harc",2]],"stampede"],[0.52,0.48,"Bell Tower",[["archer",4]],"volley"],[0.78,0.38,"Capital",[["sword",3],["horse",2]],null,1]], foes: [["sword",7,0.72,0.3],["horse",4,0.84,0.55],["harc",3,0.66,0.62],["archer",5,0.78,0.2]], win: "capital" }
 ];
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 const hud = document.getElementById("hud");
-let W = 360, H = 480, state = null, last = 0;
+const log = document.getElementById("log");
+let W = 360, H = 500, state = null, last = 0, pointer = null;
 
 function fit() {
   const s = document.getElementById("stage");
-  W = Math.max(280, s.clientWidth || window.innerWidth);
-  H = Math.max(240, s.clientHeight || 480);
-  canvas.width = W;
-  canvas.height = H;
+  W = Math.max(300, s.clientWidth || innerWidth);
+  H = Math.max(260, s.clientHeight || 480);
+  canvas.width = W; canvas.height = H;
 }
+function rnd(a, b) { return a + Math.random() * (b - a); }
 function unit(type, side, x, y) {
   const spec = TYPES[type];
-  return { type, side, x, y, hp: spec.hp, max: spec.hp, cd: Math.random()*0.3, tx: x, ty: y, target: null, sel: false, stun: 0, alive: true };
+  return { type, side, x, y, hp: spec.hp, max: spec.hp, cd: Math.random() * 0.4, tx: x, ty: y, target: null, sel: false, stun: 0, alive: true, hold: false, bob: Math.random() * 6 };
 }
 function group(list, side, ox, oy) {
-  const out = [];
-  let i = 0;
+  const out = []; let i = 0;
   for (const [t, n] of list) for (let k = 0; k < n; k++, i++) {
-    const a = i * 0.9;
-    out.push(unit(t, side, ox + Math.cos(a)*18, oy + Math.sin(a)*18));
+    const a = i * 0.85;
+    out.push(unit(t, side, ox + Math.cos(a) * (16 + (i % 3) * 8), oy + Math.sin(a) * (16 + (i % 3) * 8)));
   }
   return out;
 }
-function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-function nearest(u) {
-  let best = null, bd = 1e9;
-  for (const o of state.units) if (o.alive && o.side !== u.side && dist(u,o) < bd) { bd = dist(u,o); best = o; }
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function nearest(u, max = 9999) {
+  let best = null, bd = max;
+  for (const o of state.units) if (o.alive && o.side !== u.side) {
+    const d = dist(u, o); if (d < bd) { bd = d; best = o; }
+  }
   return best;
 }
-function mul(a,d){
-  if (a==="sword" && d==="horse") return 1.5;
-  if (a==="horse" && (d==="archer"||d==="harc")) return 1.45;
-  if (a==="archer" && d==="sword") return 1.5;
-  if (a==="harc" && d==="sword") return 1.25;
-  if (a==="sword" && d==="archer") return 0.75;
-  if (a==="horse" && d==="sword") return 0.7;
+function mul(a, d) {
+  if (a === "sword" && d === "horse") return 1.65;
+  if (a === "horse" && (d === "archer" || d === "harc")) return 1.55;
+  if (a === "archer" && d === "sword") return 1.6;
+  if (a === "harc" && d === "sword") return 1.3;
+  if (a === "sword" && d === "archer") return 0.7;
+  if (a === "horse" && d === "sword") return 0.62;
+  if ((a === "archer" || a === "harc") && d === "horse") return 0.68;
   return 1;
+}
+function say(t) { log.textContent = t; }
+function treesFor(seed) {
+  const trees = [];
+  for (let i = 0; i < 18; i++) trees.push({ x: (Math.sin(seed * 3 + i * 1.7) * 0.5 + 0.5) * W, y: (Math.cos(seed + i) * 0.5 + 0.5) * H, s: 8 + (i % 4) * 3 });
+  return trees;
 }
 function start(m) {
   fit();
   state = {
-    m, t: 0, over: null, powers: {}, cd: {wedge:0,stampede:0,volley:0},
-    units: [
-      ...group(m.start, "player", W*0.16, H*0.55),
-      ...m.foes.flatMap(([t,n,x,y]) => group([[t,n]], "enemy", W*x, H*y))
-    ],
-    banners: m.banners.map(([x,y,name,grant,power,capital]) => ({ x: W*x, y: H*y, name, grant, power, capital, progress: 0, done: false, owner: null, hold: capital?6:4 }))
+    m, t: 0, over: null, powers: {}, cd: { wedge: 0, stampede: 0, volley: 0 }, shots: [], texts: [], trees: treesFor(m.title.length),
+    units: [...group(m.start, "player", W * 0.16, H * 0.58), ...m.foes.flatMap(([t, n, x, y]) => group([[t, n]], "enemy", W * x, H * y))],
+    banners: m.banners.map(([x, y, name, grant, power, capital]) => ({ x: W * x, y: H * y, name, grant, power, capital, progress: 0, done: false, owner: null, hold: capital ? 6 : 4.2 }))
   };
   document.getElementById("menu").classList.add("hide");
   document.getElementById("end").classList.add("hide");
+  say(m.brief);
   paint();
 }
 function claim(b, side) {
   if (b.done) return;
-  b.done = true; b.owner = side;
-  state.units.push(...group(b.grant, side, b.x, b.y+24));
-  if (side === "player" && b.power) state.powers[b.power] = true;
+  b.done = true; b.owner = side; b.progress = b.hold;
+  state.units.push(...group(b.grant, side, b.x + (side === "player" ? 0 : 20), b.y + 26));
+  if (side === "player" && b.power) { state.powers[b.power] = true; say(b.name + " sworn. " + POWERS[b.power] + " learned."); }
+  else if (side === "player") say(b.name + " sworn. Garrison joined.");
+  else say("They collected " + b.name + ".");
 }
-function step(u, x, y, s) {
-  const d = Math.hypot(x-u.x, y-u.y);
+function stepTo(u, x, y, s) {
+  const d = Math.hypot(x - u.x, y - u.y);
   if (d < 1) return;
-  u.x += (x-u.x)/d * Math.min(s, d);
-  u.y += (y-u.y)/d * Math.min(s, d);
+  const m = Math.min(s, d);
+  u.x += (x - u.x) / d * m; u.y += (y - u.y) / d * m;
 }
 function finish(win, text) {
   state.over = win ? "win" : "lose";
-  document.getElementById("endTitle").textContent = win ? "Banner taken" : "Host broken";
+  document.getElementById("endTitle").textContent = win ? "The host holds" : "The host breaks";
   document.getElementById("endText").textContent = text;
   document.getElementById("end").classList.remove("hide");
 }
 function tick(dt) {
   if (!state || state.over) return;
   state.t += dt;
-  for (const k in state.cd) state.cd[k] = Math.max(0, state.cd[k]-dt);
+  for (const k in state.cd) state.cd[k] = Math.max(0, state.cd[k] - dt);
   for (const u of state.units) {
     if (!u.alive) continue;
-    u.stun = Math.max(0, u.stun-dt);
-    u.cd = Math.max(0, u.cd-dt);
+    u.stun = Math.max(0, u.stun - dt);
+    u.cd = Math.max(0, u.cd - dt);
+    u.bob += dt * 6;
     if (u.stun > 0) continue;
     const spec = TYPES[u.type];
     let foe = u.target && u.target.alive ? u.target : null;
-    if (!foe) foe = nearest(u);
-    if (foe && dist(u, foe) < (u.side==="enemy"?240:400)) {
+    if (!foe && !u.hold) foe = nearest(u, u.side === "enemy" ? 230 : 360);
+    if (foe) {
       u.target = foe;
-      if (dist(u, foe) <= spec.range) {
-        if ((u.type==="harc"||u.type==="archer") && dist(u,foe) < spec.range*0.45) {
-          const ang = Math.atan2(u.y-foe.y, u.x-foe.x);
-          u.x += Math.cos(ang)*spec.speed*dt;
-          u.y += Math.sin(ang)*spec.speed*dt;
+      const d = dist(u, foe);
+      if (d <= spec.range) {
+        if ((u.type === "harc" || u.type === "archer") && d < spec.range * 0.42) {
+          const ang = Math.atan2(u.y - foe.y, u.x - foe.x);
+          u.x += Math.cos(ang) * spec.speed * dt; u.y += Math.sin(ang) * spec.speed * dt;
         }
         if (u.cd <= 0) {
-          foe.hp -= spec.dmg * mul(u.type, foe.type);
-          u.cd = spec.cd;
+          const hit = spec.dmg * mul(u.type, foe.type);
+          foe.hp -= hit; u.cd = spec.cd;
+          state.texts.push({ x: foe.x, y: foe.y - 16, life: 0.55, text: Math.round(hit), color: u.side === "player" ? "#f4e6c8" : "#e7b2a4" });
+          if (u.type === "archer" || u.type === "harc") state.shots.push({ x: u.x, y: u.y, tx: foe.x, ty: foe.y, life: 0.18 });
           if (foe.hp <= 0) foe.alive = false;
         }
-      } else step(u, foe.x, foe.y, spec.speed*dt);
-    } else if (dist(u, {x:u.tx,y:u.ty}) > 6) step(u, u.tx, u.ty, spec.speed*dt);
+      } else stepTo(u, foe.x, foe.y, spec.speed * dt);
+    } else if (dist(u, { x: u.tx, y: u.ty }) > 5) stepTo(u, u.tx, u.ty, spec.speed * dt);
   }
   for (const b of state.banners) {
     if (b.done) continue;
-    const p = state.units.filter(u => u.alive && u.side==="player" && dist(u,b)<64).length;
-    const e = state.units.filter(u => u.alive && u.side==="enemy" && dist(u,b)<64).length;
+    const p = state.units.filter(u => u.alive && u.side === "player" && dist(u, b) < 62).length;
+    const e = state.units.filter(u => u.alive && u.side === "enemy" && dist(u, b) < 62).length;
     if (p > e && p) b.progress += dt;
-    else if (state.m.enemyCollects && e > p && e) b.progress -= dt*0.6;
-    else b.progress = Math.max(0, b.progress-dt*0.3);
+    else if (state.m.enemyCollects && e > p && e) b.progress -= dt * 0.7;
+    else b.progress = Math.max(0, b.progress - dt * 0.25);
     if (b.progress >= b.hold) claim(b, "player");
     if (b.progress <= -b.hold && state.m.enemyCollects) claim(b, "enemy");
   }
-  const pa = state.units.some(u => u.alive && u.side==="player");
-  const ea = state.units.some(u => u.alive && u.side==="enemy");
-  const done = state.banners.filter(b => b.done && b.owner==="player").length;
-  const mine = state.units.filter(u => u.alive && u.side==="player").length;
-  hud.textContent = state.m.title + " · army " + mine + " · banners " + done + "/" + state.banners.length + (Object.keys(state.powers).length ? " · power ready" : "");
-  if (!pa) finish(false, "Your army is gone. Tap back and try Dust Gate again.");
-  else if (state.m.win==="clear" && !ea) finish(true, "The field is yours.");
-  else if (state.m.win==="banners" && done===state.banners.length) finish(true, "All three oaths kept.");
-  else if (state.m.win==="capital" && state.banners.some(b => b.capital && b.done && b.owner==="player") && !ea) finish(true, "The capital banner is yours.");
+  state.shots = state.shots.filter(s => (s.life -= dt) > 0);
+  state.texts = state.texts.filter(s => (s.life -= dt) > 0);
+  const mine = state.units.filter(u => u.alive && u.side === "player");
+  const ea = state.units.some(u => u.alive && u.side === "enemy");
+  const done = state.banners.filter(b => b.done && b.owner === "player").length;
+  const counts = ["sword", "horse", "harc", "archer"].map(t => TYPES[t].name[0] + mine.filter(u => u.type === t).length).join(" ");
+  hud.textContent = state.m.title + " · " + counts + " · banners " + done + "/" + state.banners.length;
+  if (!mine.length) finish(false, "No one left to collect the next banner.");
+  else if (state.m.win === "clear" && !ea) finish(true, "The field is empty of their banners. The host is yours.");
+  else if (state.m.win === "banners" && done === state.banners.length) finish(true, "Three oaths kept. Missalera remembers the order they were sworn.");
+  else if (state.m.win === "capital" && state.banners.some(b => b.capital && b.done && b.owner === "player") && !ea) finish(true, "The capital banner is down. Six is finished.");
+}
+function drawUnit(u) {
+  const bob = Math.sin(u.bob) * 1.4;
+  const x = u.x, y = u.y + bob;
+  const foe = u.side !== "player";
+  if (u.sel) { ctx.strokeStyle = "#f4e6c8"; ctx.beginPath(); ctx.ellipse(x, u.y + 8, 14, 5, 0, 0, 7); ctx.stroke(); }
+  ctx.fillStyle = "rgba(0,0,0,.25)";
+  ctx.beginPath(); ctx.ellipse(x, u.y + 9, 8, 3, 0, 0, 7); ctx.fill();
+  if (u.type === "horse" || u.type === "harc") {
+    ctx.fillStyle = foe ? "#4a2420" : "#6a431c";
+    ctx.beginPath(); ctx.ellipse(x + 2, y + 2, 11, 6, 0.2, 0, 7); ctx.fill();
+    ctx.fillStyle = foe ? "#2a1210" : "#3d2912";
+    ctx.fillRect(x + 8, y - 2, 3, 7);
+  }
+  ctx.fillStyle = foe ? "#7a2424" : (u.type === "archer" || u.type === "harc" ? "#2f4d6e" : "#8c3b2a");
+  ctx.beginPath(); ctx.arc(x, y - 2, u.type === "archer" ? 6 : 7, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#1c140c"; ctx.lineWidth = 2;
+  if (u.type === "sword" || u.type === "horse") { ctx.beginPath(); ctx.moveTo(x + 4, y - 8); ctx.lineTo(x + 10, y - 16); ctx.stroke(); }
+  if (u.type === "archer" || u.type === "harc") { ctx.beginPath(); ctx.arc(x + 8, y - 4, 5, -1, 1); ctx.stroke(); }
+  ctx.fillStyle = "#1c140c"; ctx.fillRect(x - 9, y - 16, 18, 3);
+  ctx.fillStyle = foe ? "#e07a6a" : "#e2b65a"; ctx.fillRect(x - 9, y - 16, 18 * Math.max(0, u.hp / u.max), 3);
 }
 function paint() {
-  if (!ctx) return;
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle = "#7d8a52";
-  ctx.fillRect(0,0,W,H);
-  if (!state) return;
-  for (const b of state.banners) {
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 28, 0, 7);
-    ctx.fillStyle = b.done ? (b.owner==="player" ? "rgba(212,162,74,.45)" : "rgba(122,31,31,.4)") : "rgba(243,226,196,.25)";
-    ctx.fill();
-    ctx.strokeStyle = "#f3e2c4";
-    ctx.stroke();
-    ctx.fillStyle = "#f3e2c4";
-    ctx.font = "14px Georgia";
-    ctx.textAlign = "center";
-    ctx.fillText(b.name, b.x, b.y+44);
-    if (!b.done) {
-      ctx.fillStyle = "#1c140c";
-      ctx.fillRect(b.x-22, b.y+50, 44, 6);
-      ctx.fillStyle = "#d4a24a";
-      ctx.fillRect(b.x-22, b.y+50, 44*Math.max(0,b.progress)/b.hold, 6);
+  ctx.clearRect(0, 0, W, H);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#8ea25c"); g.addColorStop(1, "#6d7c46");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(70,80,30,.18)";
+  for (let x = 0; x < W; x += 42) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  ctx.fillStyle = "rgba(70,110,140,.35)";
+  ctx.beginPath(); ctx.ellipse(W * 0.55, H * 0.78, 70, 22, 0, 0, 7); ctx.fill();
+  if (state) {
+    for (const t of state.trees) {
+      ctx.fillStyle = "#3e5a32"; ctx.beginPath(); ctx.arc(t.x, t.y, t.s, 0, 7); ctx.fill();
+      ctx.fillStyle = "#2c2014"; ctx.fillRect(t.x - 1, t.y + 2, 3, 8);
+    }
+    for (const b of state.banners) {
+      ctx.beginPath(); ctx.arc(b.x, b.y, 30, 0, 7);
+      ctx.fillStyle = b.done ? (b.owner === "player" ? "rgba(226,182,90,.28)" : "rgba(122,31,31,.28)") : "rgba(244,230,200,.16)";
+      ctx.fill(); ctx.strokeStyle = b.capital ? "#e2b65a" : "#f4e6c8"; ctx.stroke();
+      ctx.fillStyle = "#1c140c"; ctx.fillRect(b.x - 1, b.y - 24, 3, 30);
+      ctx.fillStyle = b.done && b.owner === "enemy" ? "#7a1f1f" : "#c45c1a";
+      ctx.beginPath(); ctx.moveTo(b.x + 2, b.y - 24); ctx.lineTo(b.x + 18, b.y - 16); ctx.lineTo(b.x + 2, b.y - 9); ctx.fill();
+      ctx.fillStyle = "#f4e6c8"; ctx.font = "13px Georgia"; ctx.textAlign = "center";
+      ctx.fillText(b.name, b.x, b.y + 46);
+      if (!b.done) {
+        ctx.fillStyle = "rgba(0,0,0,.45)"; ctx.fillRect(b.x - 22, b.y + 52, 44, 5);
+        ctx.fillStyle = "#e2b65a"; ctx.fillRect(b.x - 22, b.y + 52, 44 * Math.max(0, b.progress) / b.hold, 5);
+      }
+    }
+    for (const s of state.shots) {
+      ctx.strokeStyle = "#f4e6c8"; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.tx, s.ty); ctx.stroke();
+    }
+    state.units.filter(u => u.alive).sort((a, b) => a.y - b.y).forEach(drawUnit);
+    for (const f of state.texts) {
+      ctx.globalAlpha = Math.max(0, f.life * 2); ctx.fillStyle = f.color; ctx.font = "12px Georgia"; ctx.textAlign = "center";
+      ctx.fillText(f.text, f.x, f.y); ctx.globalAlpha = 1;
     }
   }
-  for (const u of state.units) if (u.alive) {
-    const spec = TYPES[u.type];
-    if (u.sel) { ctx.strokeStyle = "#fff"; ctx.strokeRect(u.x-12, u.y-12, 24, 24); }
-    ctx.beginPath();
-    ctx.arc(u.x, u.y, spec.r, 0, 7);
-    ctx.fillStyle = u.side==="player" ? spec.color : "#6b1d1d";
-    ctx.fill();
-    ctx.strokeStyle = "#f3e2c4";
-    ctx.stroke();
-    ctx.fillStyle = "#111";
-    ctx.fillRect(u.x-10, u.y-spec.r-8, 20, 4);
-    ctx.fillStyle = u.side==="player" ? "#d4a24a" : "#e7b2a4";
-    ctx.fillRect(u.x-10, u.y-spec.r-8, 20*Math.max(0,u.hp/u.max), 4);
-  }
 }
-function power() {
-  if (!state) return;
-  const order = ["wedge","stampede","volley"].find(k => state.powers[k] && state.cd[k] <= 0);
-  if (!order) { hud.textContent = "Take a banner first to learn a power"; return; }
-  const mine = state.units.filter(u => u.alive && u.side==="player");
-  if (order==="wedge") for (const u of mine.filter(u => u.type==="sword")) {
-    const f = nearest(u); if (f && dist(u,f)<150) { f.hp -= 22; f.stun = 0.8; if (f.hp<=0) f.alive=false; }
-  }
-  if (order==="stampede") for (const u of mine.filter(u => u.type==="horse"||u.type==="harc")) {
-    const f = nearest(u); if (f) { step(u,f.x,f.y,70); if (dist(u,f)<80) { f.hp -= 20; if (f.hp<=0) f.alive=false; } }
-  }
-  if (order==="volley") for (const u of mine.filter(u => u.type==="archer"||u.type==="harc")) {
-    const f = nearest(u); if (f && dist(u,f)<TYPES[u.type].range+20) { f.hp -= 18; if (f.hp<=0) f.alive=false; }
-  }
-  state.cd[order] = 12;
+function selectedOrAll() {
+  const sel = state.units.filter(u => u.alive && u.side === "player" && u.sel);
+  return sel.length ? sel : state.units.filter(u => u.alive && u.side === "player");
 }
 function attack() {
   if (!state) return;
-  let pool = state.units.filter(u => u.alive && u.side==="player" && u.sel);
-  if (!pool.length) pool = state.units.filter(u => u.alive && u.side==="player");
-  for (const u of pool) {
-    u.sel = true;
-    const f = nearest(u);
-    if (f) { u.target = f; u.tx = f.x; u.ty = f.y; }
+  for (const u of selectedOrAll()) {
+    u.sel = true; u.hold = false;
+    const f = nearest(u); if (f) { u.target = f; u.tx = f.x; u.ty = f.y; }
   }
+  say("The host is loosed.");
 }
-function pointer(e) {
+function hold() {
+  if (!state) return;
+  for (const u of selectedOrAll()) { u.sel = true; u.hold = true; u.target = null; u.tx = u.x; u.ty = u.y; }
+  say("Holding ground.");
+}
+function power() {
+  if (!state) return;
+  const key = ["wedge", "stampede", "volley"].find(k => state.powers[k] && state.cd[k] <= 0);
+  if (!key) { say("No power ready. Take the banner that teaches it."); return; }
+  const mine = state.units.filter(u => u.alive && u.side === "player");
+  if (key === "wedge") for (const u of mine.filter(u => u.type === "sword")) {
+    const f = nearest(u, 150); if (f) { f.hp -= 26; f.stun = 0.9; if (f.hp <= 0) f.alive = false; }
+  }
+  if (key === "stampede") for (const u of mine.filter(u => u.type === "horse" || u.type === "harc")) {
+    const f = nearest(u, 180); if (f) { stepTo(u, f.x, f.y, 80); f.hp -= u.type === "horse" ? 28 : 16; if (f.hp <= 0) f.alive = false; }
+  }
+  if (key === "volley") for (const u of mine.filter(u => u.type === "archer" || u.type === "harc")) {
+    const f = nearest(u, TYPES[u.type].range + 30); if (f) { f.hp -= 20; state.shots.push({ x: u.x, y: u.y, tx: f.x, ty: f.y, life: 0.25 }); if (f.hp <= 0) f.alive = false; }
+  }
+  state.cd[key] = 12;
+  say(POWERS[key] + ".");
+}
+function tap(e) {
   if (!state || state.over) return;
   const r = canvas.getBoundingClientRect();
   const t = e.changedTouches ? e.changedTouches[0] : e;
   const x = (t.clientX - r.left) * (canvas.width / r.width);
   const y = (t.clientY - r.top) * (canvas.height / r.height);
-  const hit = [...state.units].reverse().find(u => u.alive && u.side==="player" && dist(u,{x,y}) < 22);
-  if (hit) { if (!e.shiftKey) state.units.forEach(u => u.sel = false); hit.sel = true; }
-  else {
-    const sel = state.units.filter(u => u.alive && u.side==="player" && u.sel);
-    const use = sel.length ? sel : state.units.filter(u => u.alive && u.side==="player");
-    use.forEach(u => { u.sel = true; u.target = null; u.tx = x; u.ty = y; });
-  }
+  const hit = [...state.units].reverse().find(u => u.alive && u.side === "player" && dist(u, { x, y }) < 20);
+  if (hit) { state.units.forEach(u => u.sel = false); hit.sel = true; }
+  else for (const u of selectedOrAll()) { u.sel = true; u.hold = false; u.target = null; u.tx = x + rnd(-8, 8); u.ty = y + rnd(-8, 8); }
   e.preventDefault();
 }
-canvas.addEventListener("pointerdown", pointer);
-canvas.addEventListener("touchstart", pointer, {passive:false});
-document.getElementById("all").onclick = () => { if (!state) return; state.units.forEach(u => { if (u.alive && u.side==="player") u.sel = true; }); };
+canvas.addEventListener("pointerdown", tap);
+canvas.addEventListener("touchstart", tap, { passive: false });
+document.getElementById("all").onclick = () => { if (!state) return; state.units.forEach(u => { if (u.alive && u.side === "player") u.sel = true; }); say("Whole host selected."); };
 document.getElementById("atk").onclick = attack;
+document.getElementById("hold").onclick = hold;
 document.getElementById("pow").onclick = power;
-document.getElementById("miss").onclick = () => document.getElementById("menu").classList.remove("hide");
-document.getElementById("back").onclick = () => { document.getElementById("end").classList.add("hide"); document.getElementById("menu").classList.remove("hide"); state = null; hud.textContent = "Tap a mission"; };
+document.getElementById("back").onclick = () => { document.getElementById("end").classList.add("hide"); document.getElementById("menu").classList.remove("hide"); state = null; hud.textContent = "Tap a mission"; say(""); };
 const list = document.getElementById("list");
-MISSIONS.forEach((m,i) => {
+MISSIONS.forEach((m, i) => {
   const b = document.createElement("button");
   b.type = "button";
-  b.textContent = m.title;
+  b.innerHTML = "<b>" + m.title + "</b><br>" + m.brief;
   b.onclick = () => start(MISSIONS[i]);
   list.appendChild(b);
 });
 function loop(now) {
   const dt = Math.min(0.033, (now - last) / 1000 || 0.016);
-  last = now;
-  tick(dt);
-  paint();
-  requestAnimationFrame(loop);
+  last = now; tick(dt); paint(); requestAnimationFrame(loop);
 }
-fit();
-addEventListener("resize", fit);
-requestAnimationFrame(loop);
+fit(); addEventListener("resize", fit); requestAnimationFrame(loop);
 </script>
 </body>
 </html>
