@@ -6,21 +6,26 @@
 <title>Age of Missalera</title>
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; height: 100%; background: #120e0a; color: #f4e6c8; font-family: Georgia, serif; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: #100c09; color: #f6ead2; font-family: Georgia, serif; overflow: hidden; }
   #app { height: 100dvh; height: 100vh; display: flex; flex-direction: column; }
-  header { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; background: #2a1c12; border-bottom: 2px solid #8a6230; z-index: 2; }
-  b { color: #e2b65a; letter-spacing: .06em; }
-  #hud { font-size: 13px; text-align: right; }
-  #stage { position: relative; flex: 1; min-height: 200px; }
+  header { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px 12px; background: linear-gradient(#3b2918, #24180f); border-bottom: 2px solid #c9a15b; }
+  b { color: #e2b65a; letter-spacing: .08em; font-size: 14px; }
+  #hud { font-size: 12px; text-align: right; line-height: 1.35; }
+  #stage { position: relative; flex: 1; min-height: 180px; }
   canvas { width: 100%; height: 100%; display: block; touch-action: none; }
-  #controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; padding: 8px; background: #1a130d; z-index: 2; }
-  button { font-family: inherit; font-size: 15px; padding: 12px 6px; border-radius: 8px; border: 1px solid #c9a15b; background: #2c4468; color: #f4e6c8; }
-  #menu, #end { position: absolute; inset: 0; z-index: 5; overflow: auto; background: rgba(10,8,6,.84); padding: 14px; }
-  .card { background: #f3e2c4; color: #1c140c; border-radius: 12px; padding: 14px; }
-  .card h1 { margin: 0 0 6px; }
+  #log { position: absolute; left: 10px; right: 10px; top: 10px; z-index: 3; background: rgba(18,12,8,.72); border: 1px solid rgba(226,182,90,.45); padding: 8px 10px; border-radius: 8px; font-size: 13px; }
+  #pips { position: absolute; left: 10px; bottom: 10px; z-index: 3; display: flex; gap: 6px; }
+  .pip { background: rgba(18,12,8,.75); border: 1px solid #8a6230; border-radius: 8px; padding: 4px 7px; font-size: 12px; }
+  #controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; padding: 8px; background: #1a130d; }
+  button { font-family: inherit; font-size: 15px; padding: 13px 6px; border-radius: 10px; border: 1px solid #c9a15b; background: #243656; color: #f6ead2; }
+  button:active { transform: translateY(1px); }
+  #menu, #end { position: absolute; inset: 0; z-index: 6; overflow: auto; background: rgba(8,6,4,.86); padding: 16px; }
+  .card { background: #f4e4c6; color: #1c140c; border-radius: 14px; padding: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+  .card h1 { margin: 0 0 4px; font-size: 28px; }
+  .eyebrow { letter-spacing: .14em; font-size: 11px; color: #8a6230; }
+  .card p { margin: 8px 0; line-height: 1.4; }
   .card button { width: 100%; margin: 6px 0; text-align: left; background: #efe0c0; color: #1c140c; }
   .hide { display: none; }
-  #log { position: absolute; left: 8px; top: 8px; z-index: 3; background: rgba(20,14,8,.55); padding: 6px 8px; border-radius: 6px; font-size: 13px; max-width: 78%; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 </head>
@@ -28,10 +33,12 @@
 <div id="app">
   <header><b>AGE OF MISSALERA</b><div id="hud">Tap a mission</div></header>
   <div id="stage">
-    <div id="log">3D field. Wait for the cream card.</div>
+    <div id="log">Loading the 3D field…</div>
+    <div id="pips"></div>
     <div id="menu"><div class="card">
+      <div class="eyebrow">SIX BANNERS</div>
       <h1>Age of Missalera</h1>
-      <p>3D skirmish. Collect banners. Swords beat horses, horses beat archers, archers cut swords.</p>
+      <p>Collect garrisons. Do not train them. Swords beat horses. Horses break archers. Archers cut swords.</p>
       <div id="list"></div>
     </div></div>
     <div id="end" class="hide"><div class="card">
@@ -48,24 +55,24 @@
   </div>
 </div>
 <script>
-if (!window.THREE) document.getElementById("log").textContent = "3D library did not load. Check the connection and reload.";
 const TYPES = {
-  sword: { hp: 110, dmg: 16, range: 1.5, speed: 3.2, cd: 0.68 },
-  horse: { hp: 90, dmg: 18, range: 1.6, speed: 5.4, cd: 0.66 },
-  harc: { hp: 64, dmg: 10, range: 6.2, speed: 5.6, cd: 0.8 },
-  archer: { hp: 52, dmg: 12, range: 6.8, speed: 3.0, cd: 0.82 }
+  sword: { name: "Swords", hp: 110, dmg: 16, range: 1.55, speed: 3.2, cd: 0.68, color: 0x8c3b2a },
+  horse: { name: "Horses", hp: 90, dmg: 18, range: 1.65, speed: 5.4, cd: 0.66, color: 0x6a431c },
+  harc: { name: "Horse bows", hp: 64, dmg: 10, range: 6.2, speed: 5.6, cd: 0.8, color: 0x3e5c3a },
+  archer: { name: "Archers", hp: 52, dmg: 12, range: 6.8, speed: 3.0, cd: 0.82, color: 0x2f4d6e }
 };
 const POWERS = { wedge: "Iron Wedge", stampede: "Stampede", volley: "Black Volley" };
 const MISSIONS = [
-  { title: "I  Dust Gate", brief: "Collect the gate swords.", start: [["sword",5],["archer",2]], banners: [[-2,1,"Dust Gate",[["sword",5]],"wedge"],[4,3,"Salt Well",[["archer",3]]]], foes: [["sword",6,4,-1],["archer",4,6,2]], win: "clear" },
-  { title: "II  Horse Road", brief: "The road pays in cavalry.", start: [["sword",4],["horse",2]], banners: [[-3,-2,"Mare Post",[["horse",4]],"stampede"],[3,4,"Reed Ford",[["harc",3]]]], foes: [["horse",5,5,-2],["archer",4,6,2]], win: "clear" },
-  { title: "III  Kite Orchard", brief: "Answer archers with horse bows.", start: [["sword",3],["harc",3]], banners: [[-1,-3,"Orchard",[["harc",4]],"volley"],[5,4,"Lime Kiln",[["sword",4]]]], foes: [["archer",7,5,-1],["sword",4,2,1]], win: "clear" },
-  { title: "IV  Three Oaths", brief: "Take all three banners.", start: [["sword",4],["horse",2],["archer",2]], banners: [[-4,-1,"Steel",[["sword",4]],"wedge"],[0,4,"Hoof",[["horse",3]],"stampede"],[5,-2,"String",[["archer",4]],"volley"]], foes: [["sword",5,1,-3],["horse",4,6,1],["archer",4,-2,4]], win: "banners" },
-  { title: "V  The Collector", brief: "They collect too.", start: [["sword",5],["horse",2],["archer",2]], banners: [[-1,0,"Copper Yard",[["sword",5]],"wedge"],[4,0,"Night Stable",[["horse",3],["harc",2]],"stampede"]], foes: [["sword",6,1,4],["horse",4,6,-3],["archer",4,5,4]], enemyCollects: true, win: "clear" },
-  { title: "VI  Capital Host", brief: "The gold banner is the capital.", start: [["sword",6],["horse",2],["harc",2],["archer",3]], banners: [[-4,-3,"West Gate",[["sword",4]],"wedge"],[-4,4,"Stables",[["horse",3],["harc",2]],"stampede"],[1,0,"Bell Tower",[["archer",4]],"volley"],[6,-1,"Capital",[["sword",3],["horse",2]],null,1]], foes: [["sword",7,5,-2],["horse",4,7,2],["harc",3,3,3],["archer",5,6,-4]], win: "capital" }
+  { title: "I · Dust Gate", brief: "Collect the gate swords. Learn the wedge.", start: [["sword",5],["archer",2]], banners: [[-2,1,"Dust Gate",[["sword",5]],"wedge"],[4,3,"Salt Well",[["archer",3]]]], foes: [["sword",6,4,-1],["archer",4,6,2]], win: "clear" },
+  { title: "II · Horse Road", brief: "The road pays in cavalry.", start: [["sword",4],["horse",2]], banners: [[-3,-2,"Mare Post",[["horse",4]],"stampede"],[3,4,"Reed Ford",[["harc",3]]]], foes: [["horse",5,5,-2],["archer",4,6,2]], win: "clear" },
+  { title: "III · Kite Orchard", brief: "Answer the trees with horse bows.", start: [["sword",3],["harc",3]], banners: [[-1,-3,"Orchard",[["harc",4]],"volley"],[5,4,"Lime Kiln",[["sword",4]]]], foes: [["archer",7,5,-1],["sword",4,2,1]], win: "clear" },
+  { title: "IV · Three Oaths", brief: "Take all three banners.", start: [["sword",4],["horse",2],["archer",2]], banners: [[-4,-1,"Steel",[["sword",4]],"wedge"],[0,4,"Hoof",[["horse",3]],"stampede"],[5,-2,"String",[["archer",4]],"volley"]], foes: [["sword",5,1,-3],["horse",4,6,1],["archer",4,-2,4]], win: "banners" },
+  { title: "V · The Collector", brief: "They collect too. Do not leave a banner.", start: [["sword",5],["horse",2],["archer",2]], banners: [[-1,0,"Copper Yard",[["sword",5]],"wedge"],[4,0,"Night Stable",[["horse",3],["harc",2]],"stampede"]], foes: [["sword",6,1,4],["horse",4,6,-3],["archer",4,5,4]], enemyCollects: true, win: "clear" },
+  { title: "VI · Capital Host", brief: "The gold flag is the capital.", start: [["sword",6],["horse",2],["harc",2],["archer",3]], banners: [[-4,-3,"West Gate",[["sword",4]],"wedge"],[-4,4,"Stables",[["horse",3],["harc",2]],"stampede"],[1,0,"Bell Tower",[["archer",4]],"volley"],[6,-1,"Capital",[["sword",3],["horse",2]],null,1]], foes: [["sword",7,5,-2],["horse",4,7,2],["harc",3,3,3],["archer",5,6,-4]], win: "capital" }
 ];
 const hud = document.getElementById("hud");
 const log = document.getElementById("log");
+const pips = document.getElementById("pips");
 const stage = document.getElementById("stage");
 let renderer, scene, camera, ground, ray, state, last = 0;
 function say(t) { log.textContent = t; }
@@ -76,65 +83,70 @@ function boot() {
   renderer.shadowMap.enabled = true;
   stage.insertBefore(renderer.domElement, stage.firstChild);
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x8ea4c8);
-  scene.fog = new THREE.Fog(0x8ea4c8, 28, 60);
-  camera = new THREE.PerspectiveCamera(48, stage.clientWidth / stage.clientHeight, 0.1, 100);
-  camera.position.set(0, 18, 16);
+  scene.background = new THREE.Color(0x9eb0c8);
+  scene.fog = new THREE.Fog(0x9eb0c8, 26, 58);
+  camera = new THREE.PerspectiveCamera(46, stage.clientWidth / Math.max(1, stage.clientHeight), 0.1, 100);
+  camera.position.set(0, 16, 15);
   camera.lookAt(0, 0, 0);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const sun = new THREE.DirectionalLight(0xfff1d0, 1.1);
-  sun.position.set(8, 16, 6); sun.castShadow = true; scene.add(sun);
-  ground = new THREE.Mesh(new THREE.PlaneGeometry(28, 20), new THREE.MeshLambertMaterial({ color: 0x6f8a45 }));
+  scene.add(new THREE.HemisphereLight(0xfff4df, 0x3d4a28, 0.7));
+  const sun = new THREE.DirectionalLight(0xfff1d0, 1.15);
+  sun.position.set(10, 18, 8); sun.castShadow = true; scene.add(sun);
+  ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 22), new THREE.MeshLambertMaterial({ color: 0x6e8746 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const water = new THREE.Mesh(new THREE.CircleGeometry(2.2, 20), new THREE.MeshLambertMaterial({ color: 0x3d6e8c }));
-  water.rotation.x = -Math.PI / 2; water.position.set(3, 0.02, 5); scene.add(water);
-  for (let i = 0; i < 14; i++) {
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 18), new THREE.MeshLambertMaterial({ color: 0x8a7350 }));
+  road.rotation.x = -Math.PI / 2; road.position.y = 0.02; scene.add(road);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(2.4, 22), new THREE.MeshLambertMaterial({ color: 0x3c6d8a }));
+  water.rotation.x = -Math.PI / 2; water.position.set(4.5, 0.03, 5.2); scene.add(water);
+  for (let i = 0; i < 16; i++) {
     const tree = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.8, 6), new THREE.MeshLambertMaterial({ color: 0x5a3b22 }));
-    const top = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.4, 7), new THREE.MeshLambertMaterial({ color: 0x2f6b32 }));
-    trunk.position.y = 0.4; top.position.y = 1.3; tree.add(trunk, top);
-    tree.position.set(-10 + (i * 1.7) % 20, 0, -7 + (i % 5) * 3.1);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.7, 6), new THREE.MeshLambertMaterial({ color: 0x5a3b22 }));
+    const top = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.3, 7), new THREE.MeshLambertMaterial({ color: i % 2 ? 0x2f6b32 : 0x3e7a3a }));
+    trunk.position.y = 0.35; top.position.y = 1.15; tree.add(trunk, top);
+    tree.position.set(-12 + (i * 1.8) % 24, 0, -8 + (i % 6) * 2.8);
     scene.add(tree);
   }
   ray = new THREE.Raycaster();
   addEventListener("resize", resize);
   renderer.domElement.addEventListener("pointerdown", tap);
+  say("Tap a mission. Yours are the ringed figures on the left.");
 }
 function resize() {
   if (!renderer) return;
-  const w = stage.clientWidth, h = stage.clientHeight;
-  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  camera.aspect = stage.clientWidth / Math.max(1, stage.clientHeight);
+  camera.updateProjectionMatrix();
 }
 function makeMesh(type, side) {
   const g = new THREE.Group();
   const foe = side !== "player";
-  const cloth = foe ? 0x8a2424 : (type === "archer" || type === "harc" ? 0x2f4d6e : 0x8c3b2a);
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.45, 3, 6), new THREE.MeshLambertMaterial({ color: cloth }));
-  body.position.y = 0.7; body.castShadow = true; g.add(body);
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.42, 3, 6), new THREE.MeshLambertMaterial({ color: foe ? 0x8a2424 : TYPES[type].color }));
+  body.position.y = 0.72; body.castShadow = true; g.add(body);
   if (type === "horse" || type === "harc") {
-    const horse = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.4, 0.35), new THREE.MeshLambertMaterial({ color: foe ? 0x4a2420 : 0x6a431c }));
-    horse.position.set(0.15, 0.35, 0); g.add(horse);
+    const horse = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.38, 0.36), new THREE.MeshLambertMaterial({ color: foe ? 0x4a2420 : 0x6a431c }));
+    horse.position.set(0.12, 0.34, 0); g.add(horse);
   }
   if (type === "sword" || type === "horse") {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.7, 0.06), new THREE.MeshLambertMaterial({ color: 0xd9d3c5 }));
-    blade.position.set(0.28, 1.0, 0); g.add(blade);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.7, 0.06), new THREE.MeshLambertMaterial({ color: 0xe6e0d2 }));
+    blade.position.set(0.28, 1.05, 0); g.add(blade);
   }
   if (type === "archer" || type === "harc") {
-    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 6, 10, Math.PI), new THREE.MeshLambertMaterial({ color: 0xc9a15b }));
-    bow.position.set(0.3, 0.8, 0); g.add(bow);
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 6, 12, Math.PI), new THREE.MeshLambertMaterial({ color: 0xd4b36a }));
+    bow.position.set(0.32, 0.85, 0); g.add(bow);
   }
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.55, 16), new THREE.MeshBasicMaterial({ color: 0xf4e6c8, side: THREE.DoubleSide }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05; ring.visible = false; g.add(ring);
-  g.userData.ring = ring;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.48, 0.6, 18), new THREE.MeshBasicMaterial({ color: 0xf6ead2, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.06; ring.visible = false; g.add(ring);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 0.06), new THREE.MeshBasicMaterial({ color: 0xe2b65a }));
+  bar.position.y = 1.35; g.add(bar);
+  g.userData.ring = ring; g.userData.bar = bar;
   return g;
 }
 function makeBanner(b) {
   const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 6), new THREE.MeshLambertMaterial({ color: 0x1c140c }));
-  pole.position.y = 0.9;
-  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.4), new THREE.MeshLambertMaterial({ color: b.capital ? 0xe2b65a : 0xc45c1a, side: THREE.DoubleSide }));
-  flag.position.set(0.35, 1.45, 0);
-  const pad = new THREE.Mesh(new THREE.CircleGeometry(1.1, 18), new THREE.MeshBasicMaterial({ color: 0xf4e6c8, transparent: true, opacity: 0.25 }));
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 2, 6), new THREE.MeshLambertMaterial({ color: 0x1c140c }));
+  pole.position.y = 1;
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.75, 0.42), new THREE.MeshLambertMaterial({ color: b.capital ? 0xe2b65a : 0xc45c1a, side: THREE.DoubleSide }));
+  flag.position.set(0.38, 1.6, 0);
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(1.15, 20), new THREE.MeshBasicMaterial({ color: 0xf6ead2, transparent: true, opacity: 0.28 }));
   pad.rotation.x = -Math.PI / 2; pad.position.y = 0.04;
   g.add(pole, flag, pad); g.position.set(b.x, 0, b.z); g.userData.flag = flag;
   scene.add(g); b.mesh = g;
@@ -149,7 +161,7 @@ function group(list, side, ox, oz) {
   const out = []; let i = 0;
   for (const [t, n] of list) for (let k = 0; k < n; k++, i++) {
     const a = i * 0.9;
-    out.push(unit(t, side, ox + Math.cos(a) * 0.7, oz + Math.sin(a) * 0.7));
+    out.push(unit(t, side, ox + Math.cos(a) * 0.75, oz + Math.sin(a) * 0.75));
   }
   return out;
 }
@@ -168,8 +180,13 @@ function mul(a, d) {
   if (a === "horse" && d === "sword") return 0.62;
   return 1;
 }
+function clearField() {
+  if (!state) return;
+  state.units.forEach(u => scene.remove(u.mesh));
+  state.banners.forEach(b => b.mesh && scene.remove(b.mesh));
+}
 function start(m) {
-  if (state) state.units.concat(state.banners.map(b => ({ mesh: b.mesh }))).forEach(u => u.mesh && scene.remove(u.mesh));
+  clearField();
   state = {
     m, over: null, powers: {}, cd: { wedge: 0, stampede: 0, volley: 0 },
     units: [...group(m.start, "player", -8, 2), ...m.foes.flatMap(([t, n, x, z]) => group([[t, n]], "enemy", x, z))],
@@ -185,8 +202,8 @@ function claim(b, side) {
   b.done = true; b.owner = side;
   b.mesh.userData.flag.material.color.set(side === "player" ? 0xe2b65a : 0x7a1f1f);
   state.units.push(...group(b.grant, side, b.x, b.z + 1.2));
-  if (side === "player" && b.power) { state.powers[b.power] = true; say(b.name + " sworn. " + POWERS[b.power] + " learned."); }
-  else say(side === "player" ? b.name + " sworn." : "They collected " + b.name + ".");
+  say(side === "player" ? (b.name + " sworn." + (b.power ? " " + POWERS[b.power] + " learned." : "")) : "They collected " + b.name + ".");
+  if (side === "player" && b.power) state.powers[b.power] = true;
 }
 function stepTo(u, x, z, s) {
   const d = Math.hypot(x - u.x, z - u.z); if (d < 0.05) return;
@@ -197,6 +214,21 @@ function finish(win, text) {
   document.getElementById("endTitle").textContent = win ? "The host holds" : "The host breaks";
   document.getElementById("endText").textContent = text;
   document.getElementById("end").classList.remove("hide");
+}
+function paintHud() {
+  const mine = state.units.filter(u => u.alive && u.side === "player");
+  const done = state.banners.filter(b => b.done && b.owner === "player").length;
+  const bits = ["sword", "horse", "harc", "archer"].map(t => TYPES[t].name.split(" ")[0] + " " + mine.filter(u => u.type === t).length);
+  hud.innerHTML = state.m.title + "<br>" + bits.join(" · ") + "<br>Banners " + done + "/" + state.banners.length;
+  pips.innerHTML = "";
+  for (const b of state.banners) {
+    const el = document.createElement("div");
+    el.className = "pip";
+    el.textContent = b.done ? (b.owner === "player" ? "✓ " : "✕ ") + b.name : b.name + " " + Math.max(0, Math.round(b.progress / b.hold * 100)) + "%";
+    pips.appendChild(el);
+  }
+  const key = ["wedge", "stampede", "volley"].find(k => state.powers[k]);
+  document.getElementById("pow").textContent = key ? (state.cd[key] > 0 ? POWERS[key].split(" ")[0] + " " + Math.ceil(state.cd[key]) : POWERS[key].split(" ")[0]) : "Power";
 }
 function tick(dt) {
   if (!state || state.over) return;
@@ -209,16 +241,15 @@ function tick(dt) {
       let foe = u.target && u.target.alive ? u.target : null;
       if (!foe && !u.hold) foe = nearest(u, u.side === "enemy" ? 8 : 14);
       if (foe) {
-        u.target = foe;
+        u.target = foe; u.mesh.lookAt(foe.x, 0, foe.z);
         if (dist(u, foe) <= spec.range) {
           if (u.cd <= 0) { foe.hp -= spec.dmg * mul(u.type, foe.type); u.cd = spec.cd; if (foe.hp <= 0) { foe.alive = false; scene.remove(foe.mesh); } }
         } else stepTo(u, foe.x, foe.z, spec.speed * dt);
       } else if (Math.hypot(u.tx - u.x, u.tz - u.z) > 0.2) stepTo(u, u.tx, u.tz, spec.speed * dt);
     }
     u.mesh.position.set(u.x, 0, u.z);
-    u.mesh.userData.ring.visible = u.sel;
-    const s = 0.55 + 0.45 * Math.max(0, u.hp / u.max);
-    u.mesh.scale.set(1, s, 1);
+    u.mesh.userData.ring.visible = !!u.sel;
+    u.mesh.userData.bar.scale.x = Math.max(0.05, u.hp / u.max);
   }
   for (const b of state.banners) {
     if (b.done) continue;
@@ -230,10 +261,10 @@ function tick(dt) {
     if (b.progress >= b.hold) claim(b, "player");
     if (b.progress <= -b.hold && state.m.enemyCollects) claim(b, "enemy");
   }
+  paintHud();
   const mine = state.units.filter(u => u.alive && u.side === "player");
   const ea = state.units.some(u => u.alive && u.side === "enemy");
   const done = state.banners.filter(b => b.done && b.owner === "player").length;
-  hud.textContent = state.m.title + " · army " + mine.length + " · banners " + done + "/" + state.banners.length;
   if (!mine.length) finish(false, "No one left to collect the next banner.");
   else if (state.m.win === "clear" && !ea) finish(true, "The field is empty of their host.");
   else if (state.m.win === "banners" && done === state.banners.length) finish(true, "Three oaths kept.");
@@ -251,7 +282,7 @@ function attack() {
 function hold() {
   if (!state) return;
   for (const u of selectedOrAll()) { u.sel = true; u.hold = true; u.target = null; u.tx = u.x; u.tz = u.z; }
-  say("Holding ground.");
+  say("Holding the ground.");
 }
 function power() {
   if (!state) return;
@@ -261,7 +292,7 @@ function power() {
   if (key === "wedge") for (const u of mine.filter(u => u.type === "sword")) { const f = nearest(u, 4); if (f) { f.hp -= 26; f.stun = 0.9; if (f.hp <= 0) { f.alive = false; scene.remove(f.mesh); } } }
   if (key === "stampede") for (const u of mine.filter(u => u.type === "horse" || u.type === "harc")) { const f = nearest(u, 5); if (f) { stepTo(u, f.x, f.z, 2); f.hp -= 24; if (f.hp <= 0) { f.alive = false; scene.remove(f.mesh); } } }
   if (key === "volley") for (const u of mine.filter(u => u.type === "archer" || u.type === "harc")) { const f = nearest(u, 8); if (f) { f.hp -= 20; if (f.hp <= 0) { f.alive = false; scene.remove(f.mesh); } } }
-  state.cd[key] = 12; say(POWERS[key] + ".");
+  state.cd[key] = 12; say(POWERS[key] + " fired.");
 }
 function tap(e) {
   if (!state || state.over) return;
@@ -271,15 +302,15 @@ function tap(e) {
   const hit = ray.intersectObject(ground)[0];
   if (!hit) return;
   const x = hit.point.x, z = hit.point.z;
-  const uhit = state.units.find(u => u.alive && u.side === "player" && Math.hypot(u.x - x, u.z - z) < 0.7);
-  if (uhit) { state.units.forEach(u => u.sel = false); uhit.sel = true; }
-  else for (const u of selectedOrAll()) { u.sel = true; u.hold = false; u.target = null; u.tx = x; u.tz = z; }
+  const uhit = state.units.find(u => u.alive && u.side === "player" && Math.hypot(u.x - x, u.z - z) < 0.75);
+  if (uhit) { state.units.forEach(u => u.sel = false); uhit.sel = true; say("One figure selected. Tap the grass to move."); }
+  else { for (const u of selectedOrAll()) { u.sel = true; u.hold = false; u.target = null; u.tx = x; u.tz = z; } say("Marching."); }
 }
-document.getElementById("all").onclick = () => { if (!state) return; state.units.forEach(u => { if (u.alive && u.side === "player") u.sel = true; }); };
+document.getElementById("all").onclick = () => { if (!state) return; state.units.forEach(u => { if (u.alive && u.side === "player") u.sel = true; }); say("Whole host selected."); };
 document.getElementById("atk").onclick = attack;
 document.getElementById("hold").onclick = hold;
 document.getElementById("pow").onclick = power;
-document.getElementById("back").onclick = () => { document.getElementById("end").classList.add("hide"); document.getElementById("menu").classList.remove("hide"); };
+document.getElementById("back").onclick = () => { document.getElementById("end").classList.add("hide"); document.getElementById("menu").classList.remove("hide"); pips.innerHTML = ""; };
 MISSIONS.forEach((m, i) => {
   const b = document.createElement("button"); b.type = "button";
   b.innerHTML = "<b>" + m.title + "</b><br>" + m.brief;
@@ -291,7 +322,8 @@ function loop(now) {
   if (renderer) { tick(dt); renderer.render(scene, camera); }
   requestAnimationFrame(loop);
 }
-if (window.THREE) { boot(); say("Tap a mission. Drag is a tap on the grass."); requestAnimationFrame(loop); }
+if (!window.THREE) say("3D library did not load. Reload with a connection.");
+else { boot(); requestAnimationFrame(loop); }
 </script>
 </body>
 </html>
